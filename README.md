@@ -12,6 +12,29 @@ This plugin enables **real-time speech activity detection** with low-latency inf
 - 📊 **Benchmark validated** against Silero VAD (faster and more continuous speech detection)  
 - 🛠️ **Configurable & extensible** within the LiveKit plugin system  
 
+
+## 🔧 Installation  
+```bash
+# from PyPI
+uv pip install livekit-plugins-tenvad
+
+# from source
+uv pip install git+https://github.com/dangvansam/livekit-plugins-tenvad.git
+```
+
+## 📊 Run Benchmark  
+```bash
+git clone https://github.com/dangvansam/livekit-plugins-tenvad.git
+
+cd livekit-plugins-tenvad
+
+# install dependencies for testing
+uv pip install .[test]
+
+python test/benchmark.py test/sample.wav outputs silero,ten
+```
+
+
 ## 📊 Benchmark Results  
 
 | Metric                  | Silero VAD                | TEN VAD                  |
@@ -28,12 +51,22 @@ This plugin enables **real-time speech activity detection** with low-latency inf
 - Detects **longer continuous speech** compared to Silero  
 - Provides **lower latency** with fewer false segment splits  
 
-## 🔧 Installation  
+## Visualizations
+### Long audio
+![TEN VAD Benchmark](test/vad_comparison_long_audio.png)
 
-```bash
-pip install livekit-plugins-tenvad
+### Short audio
+![TEN VAD Benchmark](test/vad_comparison_short_audio.png)
+
+## Citations
 ```
-
-```bash
-pip install git+https://github.com/dangvansam/livekit-plugins-tenvad.git
+@misc{TEN VAD,
+  author       = {TEN Team},
+  title        = {TEN VAD: A Low-Latency, Lightweight and High-Performance Streaming Voice Activity Detector (VAD)},
+  year         = {2025},
+  publisher    = {GitHub},
+  journal      = {GitHub repository},
+  howpublished = {\url{https://github.com/TEN-framework/ten-vad.git}},
+  email        = {developer@ten.ai}
+}
 ```

@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Agent Framework Plugin for TEN VAD"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9.0"
+requires-python = ">=3.10"
 authors = [{ name = "Sam Dang", email = "dangvansam98@gmail.com" }]
 keywords = ["webrtc", "realtime", "audio", "video", "livekit"]
 classifiers = [
@@ -18,7 +18,6 @@ classifiers = [
     "Topic :: Multimedia :: Video",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3 :: Only",
@@ -28,6 +27,9 @@ dependencies = [
     "onnxruntime>=1.18",
     "numpy>=1.26",
 ]
+
+[project.optional-dependencies]
+test = ["matplotlib==3.10.5", "livekit-plugins-silero==1.2.6", "loguru==0.7.3"]
 
 [project.urls]
 Documentation = "https://docs.livekit.io"
