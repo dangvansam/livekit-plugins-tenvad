@@ -21,6 +21,19 @@ uv pip install livekit-plugins-tenvad
 # from source
 uv pip install git+https://github.com/dangvansam/livekit-plugins-tenvad.git
 ```
+## 🔌 Usage
+```python
+from livekit.plugins import tenvad
+
+vad = tenvad.VAD.load(
+    activation_threshold=0.5,
+    min_silence_duration=0.3,
+    min_speech_duration=0.15,
+    max_buffered_speech=30,
+    prefix_padding_duration=0.1,
+    padding_duration=0.1
+)
+```
 
 ## 📊 Run Benchmark  
 ```bash
@@ -35,7 +48,7 @@ python test/benchmark.py test/sample.wav outputs silero,ten
 ```
 
 
-## 📊 Benchmark Results  
+### Benchmark Results  
 
 | Metric                  | Silero VAD                | TEN VAD                  |
 |--------------------------|---------------------------|--------------------------|
