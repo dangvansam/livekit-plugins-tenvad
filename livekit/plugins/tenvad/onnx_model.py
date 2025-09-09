@@ -1,10 +1,13 @@
 import os
 import platform
-from ctypes import CDLL, POINTER, c_float, c_int, c_int32, c_size_t, c_void_p
+import threading
+from ctypes import CDLL, POINTER, byref, c_float, c_int, c_int32, c_size_t, c_void_p
 
 import numpy as np
 
 SUPPORTED_SAMPLE_RATES = [16000]
+
+_GLOBAL_VAD_LOCK = threading.Lock()
 
 
 class TenVad:
@@ -13,6 +16,8 @@ class TenVad:
     def __init__(self, hop_size: int = 256, threshold: float = 0.5):
         self.hop_size = hop_size
         self.threshold = threshold
+        self._lock = threading.Lock()
+        self._destroyed = False
 
         base_dir = os.path.join(os.path.dirname(__file__))
 
@@ -60,18 +65,32 @@ class TenVad:
         self.create_and_init_handler()
 
     def create_and_init_handler(self):
-        assert (
-            self.vad_library.ten_vad_create(
-                POINTER(c_void_p)(self.vad_handler),
-                c_size_t(self.hop_size),
-                c_float(self.threshold),
-            )
-            == 0
-        ), "[TEN VAD]: create handler failure!"
+        with _GLOBAL_VAD_LOCK:
+            assert (
+                self.vad_library.ten_vad_create(
+                    byref(self.vad_handler),
+                    c_size_t(self.hop_size),
+                    c_float(self.threshold),
+                )
+                == 0
+            ), "[TEN VAD]: create handler failure!"
 
     def __del__(self):
-        if hasattr(self, "vad_library") and hasattr(self, "vad_handler"):
-            self.vad_library.ten_vad_destroy(POINTER(c_void_p)(self.vad_handler))
+        # Use try/except for entire __del__ to prevent any exceptions during garbage collection
+        try:
+            if hasattr(self, "_destroyed") and hasattr(self, "vad_handler"):
+                with _GLOBAL_VAD_LOCK:
+                    if not self._destroyed and self.vad_handler and self.vad_handler.value:
+                        try:
+                            self.vad_library.ten_vad_destroy(byref(self.vad_handler))
+                        except:
+                            pass
+                        finally:
+                            self._destroyed = True
+                            if hasattr(self, "vad_handler"):
+                                self.vad_handler.value = 0
+        except:
+            pass  # Silently ignore all errors in destructor
 
     def get_input_data(self, audio_data: np.ndarray):
         audio_data = np.squeeze(audio_data)
@@ -83,15 +102,18 @@ class TenVad:
         return c_void_p(data_pointer)
 
     def process(self, audio_data: np.ndarray):
-        input_pointer = self.get_input_data(audio_data)
-        self.vad_library.ten_vad_process(
-            self.vad_handler,
-            input_pointer,
-            c_size_t(self.hop_size),
-            POINTER(c_float)(self.out_probability),
-            POINTER(c_int32)(self.out_flags),
-        )
-        return self.out_probability.value, self.out_flags.value
+        if self._destroyed:
+            raise RuntimeError("VAD instance has been destroyed")
+        with _GLOBAL_VAD_LOCK:
+            input_pointer = self.get_input_data(audio_data)
+            self.vad_library.ten_vad_process(
+                self.vad_handler,
+                input_pointer,
+                c_size_t(self.hop_size),
+                byref(self.out_probability),
+                byref(self.out_flags),
+            )
+            return self.out_probability.value, self.out_flags.value
 
 
 class OnnxModel:

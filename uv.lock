@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -951,7 +951,7 @@ wheels = [
 
 [[package]]
 name = "livekit-agents"
-version = "1.2.6"
+version = "1.2.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -980,9 +980,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/bf/bac08aefd9a104eee71b10c4c756beb3cca793d7a60d8fd9d45114d9c858/livekit_agents-1.2.6.tar.gz", hash = "sha256:82dcc2d5d9f017baecc475ebd2a8e3a910d5bff307a8b8477092d71839057a88", size = 508083, upload-time = "2025-08-18T21:06:30.28Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/d1/130e6079f5d21860a6f4e21734f1a082c149d6e6d314c693ea9b6ce6bb69/livekit_agents-1.2.8.tar.gz", hash = "sha256:9948a1a79133322fcb5354d9eeaea0287be34cef7993cfe548fcef786b64670b", size = 513380, upload-time = "2025-09-02T01:06:58.383Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/70/01/04413dd215c9607590069eda36c85796bd57460e446d91de1ad6e2126054/livekit_agents-1.2.6-py3-none-any.whl", hash = "sha256:f468753ad99ed5dbce9b334b87d5c56a5d1a702a7f7c9ab8488e243c1769c7fc", size = 570870, upload-time = "2025-08-18T21:06:28.334Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/d7/05a3136f11901eae13435c3c4e7af3391a067b28a3f20448573c4b915c87/livekit_agents-1.2.8-py3-none-any.whl", hash = "sha256:46eb8d46dfb07517eb481a3bd7fca8e52e2e6987ecd2929eaf5f35a734a0a4ed", size = 577544, upload-time = "2025-09-02T01:06:56.27Z" },
 ]
 
 [[package]]
@@ -1030,7 +1030,7 @@ wheels = [
 
 [[package]]
 name = "livekit-plugins-silero"
-version = "1.2.6"
+version = "1.2.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "livekit-agents" },
@@ -1038,9 +1038,9 @@ dependencies = [
     { name = "numpy", version = "2.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "onnxruntime" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/b3/8a05e92b8aa4abfc03f3af701990bdf940989f4eb195052f8d730b114724/livekit_plugins_silero-1.2.6.tar.gz", hash = "sha256:4601a4d00a4276544f51b2869ae379708f5c96b37ec74467cd3b83f8c29f6de0", size = 1952547, upload-time = "2025-08-18T21:07:48.433Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/dc/b0e767237769e55b9234136bd5a3c19a7c742498942934aa9aed08dcbd35/livekit_plugins_silero-1.2.8.tar.gz", hash = "sha256:b386504e3c5714ffd3d92665456541e0b611820ba80ac86cbb186008e984e925", size = 1955113, upload-time = "2025-09-02T01:07:49.931Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ee/36/d3d5e22efadb1def49fee19c7433a2910ee073f7ff98884bc86276fcab6d/livekit_plugins_silero-1.2.6-py3-none-any.whl", hash = "sha256:f3b3993bf0d909448ed405b0b4948d5b3d0471e4bc18c96e74373af4dccc5df6", size = 3898409, upload-time = "2025-08-18T21:07:46.894Z" },
+    { url = "https://files.pythonhosted.org/packages/71/4e/7d745e516513dd785bddfbddff616a7daee13b0eeb3ec0d17a9ab4cda21b/livekit_plugins_silero-1.2.8-py3-none-any.whl", hash = "sha256:d76f6466fdbc850f3549ad6b82abd4b826e654c8569e441ec7e7c9f25ab02951", size = 3903254, upload-time = "2025-09-02T01:07:48.453Z" },
 ]
 
 [[package]]
@@ -1063,7 +1063,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "livekit-agents", specifier = ">=1.2.6" },
-    { name = "livekit-plugins-silero", marker = "extra == 'test'", specifier = "==1.2.6" },
+    { name = "livekit-plugins-silero", marker = "extra == 'test'", specifier = "==1.2.8" },
     { name = "loguru", marker = "extra == 'test'", specifier = "==0.7.3" },
     { name = "matplotlib", marker = "extra == 'test'", specifier = "==3.10.5" },
     { name = "numpy", specifier = ">=1.26" },
