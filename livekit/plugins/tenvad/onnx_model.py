@@ -1,13 +1,69 @@
 import os
 import platform
 import threading
+import queue
 from ctypes import CDLL, POINTER, byref, c_float, c_int, c_int32, c_size_t, c_void_p
 
 import numpy as np
+from .log import logger
 
 SUPPORTED_SAMPLE_RATES = [16000]
 
 _GLOBAL_VAD_LOCK = threading.Lock()
+_VAD_THREAD = None
+_VAD_QUEUE = None
+_VAD_RESULT_QUEUES = {}
+
+
+def _vad_worker_thread():
+    """Dedicated thread for all VAD operations"""
+    global _VAD_QUEUE
+    logger.info(f"VAD Worker Thread Started: pid={os.getpid()} thread_id={threading.get_ident()}")
+
+    while True:
+        try:
+            task = _VAD_QUEUE.get()
+            if task is None:  # Shutdown signal
+                break
+
+            task_id, func, args, kwargs = task
+            try:
+                result = func(*args, **kwargs)
+                _VAD_RESULT_QUEUES[task_id].put(("success", result))
+            except Exception as e:
+                _VAD_RESULT_QUEUES[task_id].put(("error", e))
+        except Exception as e:
+            logger.error(f"VAD worker thread error: {e}")
+
+
+def _ensure_vad_thread():
+    """Ensure the VAD worker thread is running"""
+    global _VAD_THREAD, _VAD_QUEUE
+
+    if _VAD_THREAD is None or not _VAD_THREAD.is_alive():
+        _VAD_QUEUE = queue.Queue()
+        _VAD_THREAD = threading.Thread(target=_vad_worker_thread, daemon=True, name="VADWorker")
+        _VAD_THREAD.start()
+
+
+def _execute_on_vad_thread(func, *args, **kwargs):
+    """Execute a function on the dedicated VAD thread"""
+    global _VAD_QUEUE, _VAD_RESULT_QUEUES
+
+    _ensure_vad_thread()
+
+    task_id = threading.get_ident()
+    result_queue = queue.Queue()
+    _VAD_RESULT_QUEUES[task_id] = result_queue
+
+    _VAD_QUEUE.put((task_id, func, args, kwargs))
+
+    status, result = result_queue.get()
+    del _VAD_RESULT_QUEUES[task_id]
+
+    if status == "error":
+        raise result
+    return result
 
 
 class TenVad:
@@ -64,7 +120,10 @@ class TenVad:
 
         self.create_and_init_handler()
 
-    def create_and_init_handler(self):
+    def _create_handler_internal(self):
+        """Internal method to create handler - must run on VAD thread"""
+        logger.info(f"create_and_init_handler: pid={os.getpid()} thread_id={threading.get_ident()}")
+
         with _GLOBAL_VAD_LOCK:
             assert (
                 self.vad_library.ten_vad_create(
@@ -75,8 +134,10 @@ class TenVad:
                 == 0
             ), "[TEN VAD]: create handler failure!"
 
+    def create_and_init_handler(self):
+        _execute_on_vad_thread(self._create_handler_internal)
+
     def __del__(self):
-        # Use try/except for entire __del__ to prevent any exceptions during garbage collection
         try:
             if hasattr(self, "_destroyed") and hasattr(self, "vad_handler"):
                 with _GLOBAL_VAD_LOCK:
@@ -90,7 +151,7 @@ class TenVad:
                             if hasattr(self, "vad_handler"):
                                 self.vad_handler.value = 0
         except:
-            pass  # Silently ignore all errors in destructor
+            pass
 
     def get_input_data(self, audio_data: np.ndarray):
         audio_data = np.squeeze(audio_data)
@@ -101,7 +162,35 @@ class TenVad:
         data_pointer = audio_data.__array_interface__["data"][0]
         return c_void_p(data_pointer)
 
-    def process(self, audio_data: np.ndarray):
+    def _update_threshold_internal(self, threshold: float):
+        """Internal method to update threshold - must run on VAD thread"""
+        with _GLOBAL_VAD_LOCK:
+            # Destroy existing handler
+            if self.vad_handler and self.vad_handler.value:
+                self.vad_library.ten_vad_destroy(byref(self.vad_handler))
+                self.vad_handler.value = 0
+
+            # Update threshold and recreate
+            self.threshold = threshold
+            self._destroyed = False
+            assert (
+                self.vad_library.ten_vad_create(
+                    byref(self.vad_handler),
+                    c_size_t(self.hop_size),
+                    c_float(self.threshold),
+                )
+                == 0
+            ), "[TEN VAD]: create handler failure!"
+
+    def update_threshold(self, threshold: float):
+        """Update threshold by recreating the handler on the VAD thread"""
+        _execute_on_vad_thread(self._update_threshold_internal, threshold)
+
+    def _process_internal(self, audio_data: np.ndarray):
+        """Internal method to process audio - must run on VAD thread"""
+        
+        # logger.info(f"process: pid={os.getpid()} thread_id={threading.get_ident()}")
+        
         if self._destroyed:
             raise RuntimeError("VAD instance has been destroyed")
         with _GLOBAL_VAD_LOCK:
@@ -114,6 +203,10 @@ class TenVad:
                 byref(self.out_flags),
             )
             return self.out_probability.value, self.out_flags.value
+
+    def process(self, audio_data: np.ndarray):
+        """Process audio on the dedicated VAD thread"""
+        return _execute_on_vad_thread(self._process_internal, audio_data)
 
 
 class OnnxModel:
@@ -146,7 +239,7 @@ class OnnxModel:
         return self._context_size
 
     def update_threshold(self, threshold: float) -> None:
-        self._ten_vad = TenVad(hop_size=self._window_size_samples, threshold=threshold)
+        self._ten_vad.update_threshold(threshold)
 
     def __call__(self, x: np.ndarray) -> float:
         probability, _ = self._ten_vad.process(x)

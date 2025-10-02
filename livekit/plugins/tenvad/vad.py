@@ -198,7 +198,14 @@ class VAD(agents.vad.VAD):
                 activation_threshold=activation_threshold,
             )
 
+    @property
+    def model(self) -> str:
+        return "TEN VAD"
 
+    @property
+    def provider(self) -> str:
+        return "TEN VAD"
+    
 class VADStream(agents.vad.VADStream):
     def __init__(self, vad: VAD, opts: _VADOptions, model: onnx_model.OnnxModel) -> None:
         super().__init__(vad)
