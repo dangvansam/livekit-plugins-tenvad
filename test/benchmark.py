@@ -1,7 +1,9 @@
+import argparse
 import asyncio
 import os
 import shutil
 import sys
+import time
 import wave
 from dataclasses import dataclass
 from datetime import timedelta
@@ -10,10 +12,10 @@ from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+from livekit.agents import vad
 from loguru import logger
 
 from livekit import rtc
-from livekit.agents import vad
 from livekit.plugins import silero, tenvad
 
 
@@ -24,8 +26,9 @@ class VADConfig:
     name: str
     model_type: str
     min_speech_duration: float = 0.1
-    min_silence_duration: float = 0.15
+    min_silence_duration: float = 0.2
     activation_threshold: float = 0.5
+    prefix_padding_duration: float = 0.3
     sample_rate: int = 16000
     chunk_duration_ms: int = 32
     color: str = "blue"
@@ -120,8 +123,9 @@ def save_vad_outputs(
     save_segments: bool = True,
     save_srt: bool = True,
     save_combined: bool = True,
+    save_audacity: bool = True,
 ) -> None:
-    """Save VAD outputs (segments, SRT, combined audio) for a single model"""
+    """Save VAD outputs (segments, SRT, Audacity labels, combined audio) for a single model"""
     vad_name = vad_results["name"]
     segments = vad_results["speech_segments"]
 
@@ -146,6 +150,12 @@ def save_vad_outputs(
         srt_file = output_path / f"{vad_name.lower()}_subtitles.srt"
         save_srt_file(segments, str(srt_file), vad_name)
         print(f"  {vad_name} SRT file saved: {srt_file}")
+
+    # Save Audacity label file
+    if save_audacity:
+        audacity_file = output_path / f"{vad_name.lower()}_labels.txt"
+        save_audacity_labels(segments, str(audacity_file), vad_name)
+        print(f"  {vad_name} Audacity labels saved: {audacity_file}")
 
     # Save combined speech-only file
     if save_combined:
@@ -177,6 +187,26 @@ def save_srt_file(segments: list, output_path: str, model_name: str = ""):
                 f.write(f"[Speech {i}: {duration:.2f}s]\n")
 
             f.write("\n")
+
+
+def save_audacity_labels(segments: list, output_path: str, model_name: str = ""):
+    """Save segments as Audacity label file
+
+    Format: start_time<tab>end_time<tab>label
+    Times are in seconds with 6 decimal places
+    """
+    with open(output_path, "w", encoding="utf-8") as f:
+        for i, seg in enumerate(segments, 1):
+            start = seg["start"]
+            end = seg["end"]
+            duration = end - start
+
+            if model_name:
+                label = f"{model_name} Speech {i}: {duration:.2f}s"
+            else:
+                label = f"Speech {i}: {duration:.2f}s"
+
+            f.write(f"{start:.6f}\t{end:.6f}\t{label}\n")
 
 
 def calculate_agreement(results1: dict, results2: dict, duration: float) -> float:
@@ -455,6 +485,7 @@ def create_vad_instance(config: VADConfig):
             min_silence_duration=config.min_silence_duration,
             activation_threshold=config.activation_threshold,
             sample_rate=config.sample_rate,
+            prefix_padding_duration=config.prefix_padding_duration
         )
     elif config.model_type == "ten":
         return tenvad.VAD.load(
@@ -462,6 +493,7 @@ def create_vad_instance(config: VADConfig):
             min_silence_duration=config.min_silence_duration,
             activation_threshold=config.activation_threshold,
             sample_rate=config.sample_rate,
+            prefix_padding_duration=config.prefix_padding_duration
         )
     else:
         raise ValueError(f"Unknown VAD model type: {config.model_type}")
@@ -476,7 +508,6 @@ async def process_with_vad(
     """Process audio with a given VAD instance and return results"""
 
     print(f"Processing with {config.name}...")
-    import time
 
     start_time = time.time()
     stream = vad_instance.stream()
@@ -737,59 +768,101 @@ async def process_audio_file(
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python test/benchmark.py <input_audio_file> [output_dir] [vad_models]")
-        print("Examples:")
-        print("  python test/benchmark.py sample.wav                    # Compare all VADs")
-        print("  python test/benchmark.py sample.wav outputs/            # Specify output dir")
-        print("  python test/benchmark.py sample.wav outputs/ silero     # Use only Silero VAD")
-        print("  python test/benchmark.py sample.wav outputs/ ten        # Use only TEN VAD")
-        print("  python test/benchmark.py sample.wav outputs/ silero,ten # Compare specific VADs")
-        print("Supported VAD models: silero, ten")
-        print("Supported formats: WAV files (will be resampled to 16kHz if needed)")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="VAD Benchmark Tool - Compare Voice Activity Detection models",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python test/benchmark.py -i sample.wav                      # Use default output and all models
+  python test/benchmark.py -i sample.wav -o outputs/          # Specify output directory
+  python test/benchmark.py -i sample.wav -m silero             # Use only Silero VAD
+  python test/benchmark.py -i sample.wav -m ten                # Use only TEN VAD
+  python test/benchmark.py -i sample.wav -m silero ten         # Compare multiple specific VADs
 
-    input_file = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 else "vad_output"
+Supported VAD models: silero, ten
+Supported formats: WAV files (will be resampled to 16kHz if needed)
+        """
+    )
 
-    # Parse VAD models selection
-    vad_configs = None
-    if len(sys.argv) > 3:
-        vad_models = sys.argv[3].lower().split(",")
-        vad_configs = []
+    parser.add_argument(
+        "-i", "--input",
+        required=True,
+        type=str,
+        help="Input audio file path (WAV format)"
+    )
 
-        for model in vad_models:
-            model = model.strip()
-            if model == "silero":
-                vad_configs.append(
-                    VADConfig(
-                        name="Silero",
-                        model_type="silero",
-                        min_speech_duration=0.15,
-                        min_silence_duration=0.05,
-                        activation_threshold=0.5,
-                        sample_rate=16000,
-                        chunk_duration_ms=32,
-                        color="blue",
-                    )
+    parser.add_argument(
+        "-o", "--output",
+        type=str,
+        default=None,
+        help="Output directory for results (default: auto-generated based on models and filename)"
+    )
+
+    parser.add_argument(
+        "-m", "--models",
+        type=str,
+        nargs="+",
+        choices=["silero", "ten"],
+        help="VAD model(s) to use (default: all models). Can specify multiple models separated by space"
+    )
+
+    args = parser.parse_args()
+
+    input_file = args.input
+
+    model_names = []
+    
+    if not args.models:
+        args.models = ["silero", "ten"]
+
+    vad_configs = []
+    for model in args.models:
+        model = model.strip().lower()
+        if model == "silero":
+            model_names.append("silero")
+            vad_configs.append(
+                VADConfig(
+                    name="Silero",
+                    model_type="silero",
+                    activation_threshold=0.43,
+                    min_speech_duration=0.1,
+                    min_silence_duration=0.25,
+                    prefix_padding_duration=0.5,
+                    sample_rate=16000,
+                    chunk_duration_ms=32,
+                    color="blue",
                 )
-            elif model == "ten":
-                vad_configs.append(
-                    VADConfig(
-                        name="TEN",
-                        model_type="ten",
-                        min_speech_duration=0.15,
-                        min_silence_duration=0.05,
-                        activation_threshold=0.5,
-                        sample_rate=16000,
-                        chunk_duration_ms=16,
-                        color="green",
-                    )
+            )
+        elif model == "ten":
+            model_names.append("ten")
+            vad_configs.append(
+                VADConfig(
+                    name="TEN",
+                    model_type="ten",
+                    activation_threshold=0.41,
+                    min_speech_duration=0.1,
+                    min_silence_duration=0.25,
+                    prefix_padding_duration=0.5,
+                    sample_rate=16000,
+                    chunk_duration_ms=16,
+                    color="green",
                 )
-            else:
-                print(f"Error: Unknown VAD model '{model}'")
-                print("Supported models: silero, ten")
-                sys.exit(1)
+            )
+
+    # Generate output directory name if not provided
+    if args.output is None:
+        # Extract filename without extension (truncate if too long)
+        input_filename = os.path.splitext(os.path.basename(input_file))[0]
+        # Truncate filename to max 20 characters
+        if len(input_filename) > 20:
+            input_filename = input_filename[:20]
+
+        # Join model names
+        models_str = "_".join(model_names)
+
+        output_dir = f"benchmark_result_{models_str}_{input_filename}"
+    else:
+        output_dir = args.output
 
     if not os.path.exists(input_file):
         print(f"Error: Input file '{input_file}' not found")

@@ -27,11 +27,10 @@ from livekit.plugins import tenvad
 
 vad = tenvad.VAD.load(
     activation_threshold=0.5,
+    min_speech_duration=0.1,
     min_silence_duration=0.3,
-    min_speech_duration=0.15,
-    max_buffered_speech=30,
-    prefix_padding_duration=0.1,
-    padding_duration=0.1
+    max_buffered_speech=60,
+    prefix_padding_duration=0.3
 )
 ```
 
@@ -44,7 +43,7 @@ cd livekit-plugins-tenvad
 # install dependencies for testing
 uv pip install .[test]
 
-python test/benchmark.py test/sample.wav outputs silero,ten
+python test/benchmark.py -i test/sample.wav
 ```
 
 

@@ -206,5 +206,8 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-output*
 .claude/
+.github/
+tmp
+output*
+benchmark*
